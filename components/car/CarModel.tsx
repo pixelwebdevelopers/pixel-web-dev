@@ -11,20 +11,21 @@ import { carState } from '@/store/carState';
  * moves the wrapping group, so this is easy to swap for a loaded model.
  */
 export function CarModel() {
-  const wheelFL = useRef<THREE.Mesh>(null);
-  const wheelFR = useRef<THREE.Mesh>(null);
-  const wheelRL = useRef<THREE.Mesh>(null);
-  const wheelRR = useRef<THREE.Mesh>(null);
+  // Front wheels: outer group yaws for steering, inner group spins around the axle.
+  const steerFL = useRef<THREE.Group>(null);
+  const steerFR = useRef<THREE.Group>(null);
+  const spinFL = useRef<THREE.Group>(null);
+  const spinFR = useRef<THREE.Group>(null);
+  const spinRL = useRef<THREE.Group>(null);
+  const spinRR = useRef<THREE.Group>(null);
 
   useFrame((_, dt) => {
-    const spin = carState.speed * dt * 0.5;
-    [wheelRL, wheelRR].forEach((w) => w.current && (w.current.rotation.x += spin));
-    const steerRot = carState.steer * 0.5;
-    [wheelFL, wheelFR].forEach((w) => {
-      if (!w.current) return;
-      w.current.rotation.x += spin;
-      w.current.rotation.y = steerRot;
-    });
+    const spin = -carState.speed * dt * 0.5;
+    [spinFL, spinFR, spinRL, spinRR].forEach(
+      (w) => w.current && (w.current.rotation.x += spin)
+    );
+    const steerRot = -carState.steer * 0.5;
+    [steerFL, steerFR].forEach((g) => g.current && (g.current.rotation.y = steerRot));
   });
 
   const RED = '#e8472b';
@@ -32,18 +33,24 @@ export function CarModel() {
   const BLACK = '#15171e';
 
   const Wheel = ({
-    refObj,
+    steerRef,
+    spinRef,
     x,
     z,
   }: {
-    refObj: React.RefObject<THREE.Mesh>;
+    steerRef?: React.RefObject<THREE.Group>;
+    spinRef: React.RefObject<THREE.Group>;
     x: number;
     z: number;
   }) => (
-    <mesh ref={refObj} position={[x, 0.45, z]} rotation={[0, 0, Math.PI / 2]} castShadow>
-      <cylinderGeometry args={[0.45, 0.45, 0.4, 14]} />
-      <meshStandardMaterial color={BLACK} roughness={0.85} flatShading />
-    </mesh>
+    <group ref={steerRef} position={[x, 0.45, z]}>
+      <group ref={spinRef}>
+        <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.45, 0.45, 0.4, 14]} />
+          <meshStandardMaterial color={BLACK} roughness={0.85} flatShading />
+        </mesh>
+      </group>
+    </group>
   );
 
   return (
@@ -112,10 +119,10 @@ export function CarModel() {
       </mesh>
 
       {/* wheels */}
-      <Wheel refObj={wheelFL} x={0.95} z={1.15} />
-      <Wheel refObj={wheelFR} x={-0.95} z={1.15} />
-      <Wheel refObj={wheelRL} x={0.95} z={-1.15} />
-      <Wheel refObj={wheelRR} x={-0.95} z={-1.15} />
+      <Wheel steerRef={steerFL} spinRef={spinFL} x={0.95} z={1.15} />
+      <Wheel steerRef={steerFR} spinRef={spinFR} x={-0.95} z={1.15} />
+      <Wheel spinRef={spinRL} x={0.95} z={-1.15} />
+      <Wheel spinRef={spinRR} x={-0.95} z={-1.15} />
     </group>
   );
 }
