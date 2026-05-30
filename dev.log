@@ -1,0 +1,15 @@
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3007
+
+ ✓ Starting...
+ ✓ Ready in 2.8s
+ ○ Compiling / ...
+The user aborted a request.
+
+Retrying 1/3...
+The user aborted a request.
+
+Retrying 1/3...
+ ✓ Compiled / in 22s (2538 modules)
+ GET / 200 in 23912ms
+[?25h
