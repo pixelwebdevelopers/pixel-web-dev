@@ -8,7 +8,19 @@ import { carState, resetCar } from '@/store/carState';
 import { controls, useKeyboardControls } from '@/hooks/useControls';
 import { useGameStore } from '@/store/useGameStore';
 import { CAR_CONFIG, WORLD, STATIONS } from '@/utils/config';
+import { STATIC_OBSTACLES, ROCK_STATES } from '@/utils/obstacles';
+import {
+  PIN_STATES,
+  LETTER_STATES,
+  RESET_ZONES,
+  resetKnockable,
+  type Knockable,
+} from '@/utils/knockables';
 import { clamp, damp } from '@/utils/math';
+import { playSound, updateEngine, setMuted } from '@/utils/sounds';
+
+/** Approx half-width of the car body for the collision circle. */
+const CAR_RADIUS = 1.1;
 
 const _forward = new THREE.Vector3();
 const _desired = new THREE.Vector3();
@@ -22,6 +34,7 @@ export function CarController() {
   const activeStation = useGameStore((s) => s.activeStation);
   const setNearbyStation = useGameStore((s) => s.setNearbyStation);
   const setSpeed = useGameStore((s) => s.setSpeed);
+  const muted = useGameStore((s) => s.muted);
 
   useKeyboardControls();
 
@@ -29,9 +42,16 @@ export function CarController() {
     resetCar();
   }, []);
 
+  useEffect(() => {
+    setMuted(muted);
+  }, [muted]);
+
   const speedTimer = useRef(0);
   const lastNearby = useRef<string | null>(null);
   const lastEntered = useRef<string | null>(null);
+  const wasDrifting = useRef(false);
+  /** Previous frame's speed — for computing instantaneous acceleration. */
+  const prevSpeed = useRef(0);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 1 / 30); // clamp huge frames (tab switches)
@@ -54,9 +74,23 @@ export function CarController() {
     const throttle = c.forward - c.backward;
     carState.speed += throttle * cfg.accel * dt;
     carState.speed -= carState.speed * cfg.drag * dt; // passive drag
+    // Engine braking: with no throttle and no brake, slow more aggressively
+    // so the car comes to rest within ~1.5s instead of coasting for 7+.
+    if (throttle === 0 && !c.brake) {
+      carState.speed -= carState.speed * 1.8 * dt;
+    }
     if (c.brake) carState.speed -= carState.speed * 2.6 * dt; // handbrake slows
     carState.speed = clamp(carState.speed, -cfg.maxReverseSpeed, cfg.maxSpeed);
-    if (Math.abs(carState.speed) < 0.02) carState.speed = 0;
+    // Higher snap threshold so residual creep can't keep the car drifting.
+    if (Math.abs(carState.speed) < 0.15) {
+      carState.speed = 0;
+      // Once at rest, kill the residual velocity vector too so we don't
+      // skate sideways from the last grip lerp.
+      if (throttle === 0) {
+        carState.velocity.x *= Math.exp(-6 * dt);
+        carState.velocity.z *= Math.exp(-6 * dt);
+      }
+    }
 
     // --- velocity with grip / drift --------------------------------------
     _forward.set(Math.sin(carState.heading), 0, Math.cos(carState.heading));
@@ -64,10 +98,164 @@ export function CarController() {
     const grip = c.brake ? cfg.handbrakeGrip : 1;
     carState.velocity.lerp(_desired, 1 - Math.exp(-cfg.gripRecovery * grip * dt));
     carState.drifting = c.brake && Math.abs(carState.speed) > 8;
+    if (carState.drifting && !wasDrifting.current) {
+      playSound('screech', 300);
+    }
+    wasDrifting.current = carState.drifting;
 
     // --- integrate position ----------------------------------------------
     carState.position.addScaledVector(carState.velocity, dt);
     carState.position.y = WORLD.groundY;
+
+    // --- collision against rooted props (trees, station poles) ----------
+    for (const obs of STATIC_OBSTACLES) {
+      const dx = carState.position.x - obs.x;
+      const dz = carState.position.z - obs.z;
+      const minD = CAR_RADIUS + obs.r;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= minD * minD || d2 === 0) continue;
+      const d = Math.sqrt(d2);
+      const nx = dx / d;
+      const nz = dz / d;
+      carState.position.x += nx * (minD - d);
+      carState.position.z += nz * (minD - d);
+      const vn = carState.velocity.x * nx + carState.velocity.z * nz;
+      if (vn < 0) {
+        carState.velocity.x -= vn * nx;
+        carState.velocity.z -= vn * nz;
+        const force = Math.min(1, Math.abs(vn) / 8);
+        playSound('wood', 100, force);
+        playSound('carHit', 100, force);
+      }
+      carState.speed *= 0.4;
+    }
+
+    // --- collision against knockable rocks ------------------------------
+    for (const rock of ROCK_STATES) {
+      const rx = rock.baseX + rock.offX;
+      const rz = rock.baseZ + rock.offZ;
+      const dx = carState.position.x - rx;
+      const dz = carState.position.z - rz;
+      const minD = CAR_RADIUS + rock.r;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= minD * minD || d2 === 0) continue;
+      const d = Math.sqrt(d2);
+      const nx = dx / d;
+      const nz = dz / d;
+      // launch the rock in the car's direction of travel — heavier rocks
+      // (bigger scale) take a smaller share of the impulse
+      const relVx = carState.velocity.x - rock.velX;
+      const relVz = carState.velocity.z - rock.velZ;
+      const closing = relVx * -nx + relVz * -nz; // how fast we're driving into it
+      if (closing > 0) {
+        const mass = rock.s; // 0.7..1.6
+        const share = clamp(1.4 / (mass + 0.4), 0.4, 1.6);
+        rock.velX += -nx * closing * share;
+        rock.velZ += -nz * closing * share;
+        rock.vrot += (Math.random() - 0.5) * closing * 0.8;
+        const force = Math.min(1, closing / 10);
+        playSound('brick', 80, force);
+        playSound('carHit', 100, force * 0.7);
+      }
+      // resolve overlap by splitting based on mass: lighter rock moves more
+      const carShare = rock.s / (rock.s + 1.0);
+      const rockShare = 1 - carShare;
+      const overlap = minD - d;
+      carState.position.x += nx * overlap * carShare;
+      carState.position.z += nz * overlap * carShare;
+      rock.offX -= nx * overlap * rockShare;
+      rock.offZ -= nz * overlap * rockShare;
+      // car loses some speed but not as much as hitting a tree
+      carState.speed *= 0.75;
+    }
+
+    // --- collision against pins + letter blocks (knockable + tippable) ---
+    const knockGroups: Array<{
+      list: Knockable[];
+      tiltGain: number;
+      speedKeep: number;
+      materialSound: string;
+      /** whether to layer a car-body thud on top */
+      layerCarHit: boolean;
+      throttleMs: number;
+    }> = [
+      {
+        list: PIN_STATES,
+        tiltGain: 2.4,
+        speedKeep: 0.9,
+        materialSound: 'pin',
+        layerCarHit: false,
+        throttleMs: 40,
+      },
+      {
+        list: LETTER_STATES,
+        tiltGain: 0.35,
+        speedKeep: 0.55,
+        materialSound: 'wood',
+        layerCarHit: true,
+        throttleMs: 90,
+      },
+    ];
+    for (const grp of knockGroups) {
+      for (const p of grp.list) {
+        const px = p.baseX + p.offX;
+        const pz = p.baseZ + p.offZ;
+        const dx = carState.position.x - px;
+        const dz = carState.position.z - pz;
+        const minD = CAR_RADIUS + p.r;
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= minD * minD || d2 === 0) continue;
+        const d = Math.sqrt(d2);
+        const nx = dx / d;
+        const nz = dz / d;
+        const relVx = carState.velocity.x - p.velX;
+        const relVz = carState.velocity.z - p.velZ;
+        const closing = relVx * -nx + relVz * -nz;
+        if (closing > 0) {
+          const share = clamp(1.4 / (p.mass + 0.4), 0.3, 2.2);
+          p.velX += -nx * closing * share;
+          p.velZ += -nz * closing * share;
+          p.vrot += (Math.random() - 0.5) * closing * 0.6;
+          // tip the prop away from the car
+          p.tiltAxisX = nx;
+          p.tiltAxisZ = nz;
+          p.vtilt += (closing * grp.tiltGain) / Math.max(0.4, p.mass);
+          const force = Math.min(1, closing / 8);
+          playSound(grp.materialSound, grp.throttleMs, force);
+          if (grp.layerCarHit) playSound('carHit', 100, force * 0.8);
+        }
+        const carShare = p.mass / (p.mass + 1.0);
+        const propShare = 1 - carShare;
+        const overlap = minD - d;
+        carState.position.x += nx * overlap * carShare;
+        carState.position.z += nz * overlap * carShare;
+        p.offX -= nx * overlap * propShare;
+        p.offZ -= nz * overlap * propShare;
+        carState.speed *= grp.speedKeep;
+      }
+    }
+
+    // --- reset zones (drive into a pad to respawn a group) ---------------
+    for (const zone of RESET_ZONES) {
+      const inside =
+        Math.abs(carState.position.x - zone.x) < zone.size &&
+        Math.abs(carState.position.z - zone.z) < zone.size;
+      if (!inside) continue;
+      playSound('reset', 600);
+      for (const tag of zone.resets) {
+        if (tag === 'pins') PIN_STATES.forEach(resetKnockable);
+        else if (tag === 'letters') LETTER_STATES.forEach(resetKnockable);
+        else if (tag === 'rocks')
+          ROCK_STATES.forEach((r) => {
+            r.offX = 0;
+            r.offZ = 0;
+            r.velX = 0;
+            r.velZ = 0;
+            r.rotY = 0;
+            r.vrot = 0;
+          });
+      }
+    }
 
     // --- soft circular boundary ------------------------------------------
     _flat.set(carState.position.x, 0, carState.position.z);
@@ -126,9 +314,28 @@ export function CarController() {
       !activeStation
     ) {
       lastEntered.current = nearest;
+      playSound('area', 300);
       useGameStore.getState().enterStation(nearest as never);
     }
     if (!nearest) lastEntered.current = null;
+
+    // --- engine loop ------------------------------------------------------
+    // The engine dynamics layer takes raw normalized speed + positive
+    // acceleration. Acceleration is critical: pressing the gas spikes accel
+    // *before* speed has time to grow, so the engine revs immediately
+    // instead of just smoothly tracking velocity. That's what stops the
+    // loop from sounding like a repeating track.
+    const driving = phase === 'driving' && !activeStation;
+    const speedN = clamp(Math.abs(carState.speed) / cfg.maxSpeed, 0, 1);
+    const dSpeed = carState.speed - prevSpeed.current;
+    // Normalize acceleration against the max possible change in one frame.
+    const accelN = clamp(dSpeed / (cfg.accel * Math.max(dt, 1e-3)), -1, 1);
+    prevSpeed.current = carState.speed;
+    if (driving) {
+      updateEngine(speedN, accelN);
+    } else {
+      updateEngine(0, 0); // idle when in a station panel
+    }
   });
 
   return (

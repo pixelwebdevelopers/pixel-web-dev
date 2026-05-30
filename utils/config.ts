@@ -7,11 +7,11 @@ export const WORLD = {
 };
 
 export const CAR_CONFIG = {
-  maxSpeed: 42, // units/sec forward
-  maxReverseSpeed: 16,
-  accel: 26, // acceleration force
+  maxSpeed: 54, // units/sec forward
+  maxReverseSpeed: 20,
+  accel: 34, // acceleration force
   brakeForce: 48,
-  drag: 1.2, // passive deceleration coefficient
+  drag: 1.1, // passive deceleration coefficient
   turnSpeed: 2.4, // rad/sec at full lock
   gripRecovery: 3.2, // how fast sideways velocity is killed (higher = more grip)
   handbrakeGrip: 0.6, // reduced grip while drifting

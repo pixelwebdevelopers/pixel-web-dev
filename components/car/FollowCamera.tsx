@@ -12,6 +12,13 @@ const _camTarget = new THREE.Vector3();
 const _lookTarget = new THREE.Vector3();
 const _behind = new THREE.Vector3();
 
+/**
+ * Fixed world-space direction the camera sits relative to its target.
+ * The camera never rotates with the car heading — it slides to follow the
+ * car's position while keeping this angle constant. Y is up.
+ */
+const ISO_DIR = new THREE.Vector3(1.2, 0.75, 1.4).normalize();
+
 export function FollowCamera() {
   const { camera } = useThree();
   const phase = useGameStore((s) => s.phase);
@@ -66,45 +73,37 @@ export function FollowCamera() {
       return;
     }
 
-    // --- third-person follow with spring lag ----------------------------
-    // sit behind the car relative to its heading, raised for a high iso feel
-    const back = 14 + speedN * 4; // pull back at speed
-    const height = 11 + speedN * 2;
-    _behind.set(
-      Math.sin(carState.heading) * -back,
-      height,
-      Math.cos(carState.heading) * -back
-    );
+    // --- fixed-angle iso follow ------------------------------------------
+    // Camera sits at a constant world-space direction from the car and only
+    // translates with it — it never yaws when the car turns. Zoom (distance)
+    // gently grows with speed for a pull-back feel.
+    const distance = 45 + speedN * 6;
+    _behind.copy(ISO_DIR).multiplyScalar(distance);
 
-    // mouse orbit offset (subtle look-around)
-    const orbit = mouse.current.x * 4;
-    const perpX = Math.cos(carState.heading) * orbit;
-    const perpZ = -Math.sin(carState.heading) * orbit;
-
+    // subtle mouse parallax — small lateral and vertical drift only
     _camTarget.copy(carState.position).add(_behind);
-    _camTarget.x += perpX;
-    _camTarget.z += perpZ;
-    _camTarget.y += mouse.current.y * -2;
+    _camTarget.x += mouse.current.x * 3;
+    _camTarget.y += mouse.current.y * -1.5;
 
-    // faster damping at speed keeps the car framed; looser when idle
-    const lambda = 4 + speedN * 4;
+    // looser damping so the camera floats rather than snaps to the car
+    const lambda = 2.5 + speedN * 2;
     camera.position.x = damp(camera.position.x, _camTarget.x, lambda, dt);
     camera.position.y = damp(camera.position.y, _camTarget.y, lambda, dt);
     camera.position.z = damp(camera.position.z, _camTarget.z, lambda, dt);
 
-    // look slightly ahead of the car in its travel direction
-    const lead = 4 + speedN * 6;
+    // look at the car body, with a tiny forward lead at speed
+    const lead = 1 + speedN * 2;
     _lookTarget.set(
       carState.position.x + Math.sin(carState.heading) * lead,
-      carState.position.y + 1.5,
+      carState.position.y + 1.0,
       carState.position.z + Math.cos(carState.heading) * lead
     );
-    look.current.lerp(_lookTarget, 1 - Math.exp(-6 * dt));
+    look.current.lerp(_lookTarget, 1 - Math.exp(-5 * dt));
     camera.lookAt(look.current);
 
-    // speed-based FOV punch
+    // narrow FOV gives the flat iso feel; small punch at speed
     const cam = camera as THREE.PerspectiveCamera;
-    const targetFov = 45 + speedN * 8 + (carState.drifting ? 3 : 0);
+    const targetFov = 38 + speedN * 3 + (carState.drifting ? 2 : 0);
     cam.fov = damp(cam.fov, targetFov, 4, dt);
     cam.updateProjectionMatrix();
   });

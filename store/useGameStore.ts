@@ -9,6 +9,8 @@ interface GameState {
   // lifecycle
   phase: Phase;
   loadProgress: number; // 0..100
+  /** performance.now() at which the drop-in intro started, 0 before */
+  dropStartedAt: number;
   setLoadProgress: (p: number) => void;
   finishLoading: () => void;
   startDriving: () => void;
@@ -48,9 +50,15 @@ interface GameState {
 export const useGameStore = create<GameState>((set) => ({
   phase: 'loading',
   loadProgress: 0,
+  dropStartedAt: 0,
   setLoadProgress: (p) =>
     set((s) => ({ loadProgress: Math.max(s.loadProgress, Math.min(100, p)) })),
-  finishLoading: () => set((s) => (s.phase === 'loading' ? { phase: 'intro' } : {})),
+  finishLoading: () =>
+    set((s) =>
+      s.phase === 'loading'
+        ? { phase: 'intro', dropStartedAt: performance.now() }
+        : {}
+    ),
   startDriving: () => set({ phase: 'driving' }),
 
   isMobile: false,

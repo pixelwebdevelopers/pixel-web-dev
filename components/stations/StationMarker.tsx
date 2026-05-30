@@ -6,6 +6,7 @@ import { Text, RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Station } from '@/utils/types';
 import { useGameStore } from '@/store/useGameStore';
+import { dropOffsetY, dropDelay } from '@/utils/dropIn';
 
 /**
  * A friendly low-poly signpost the car drives up to. A colored sign on a pole,
@@ -13,11 +14,19 @@ import { useGameStore } from '@/store/useGameStore';
  * when the car is nearby.
  */
 export function StationMarker({ station }: { station: Station }) {
+  const root = useRef<THREE.Group>(null);
   const sign = useRef<THREE.Group>(null);
   const nearbyStation = useGameStore((s) => s.nearbyStation);
+  const dropStartedAt = useGameStore((s) => s.dropStartedAt);
   const isNear = nearbyStation === station.id;
+  const dropSeed = (station.position[0] * 17 + station.position[2] * 31) | 0;
+  const delay = dropDelay(dropSeed, 0.3, 0.6);
 
   useFrame((state) => {
+    if (root.current && dropStartedAt) {
+      const elapsed = (performance.now() - dropStartedAt) / 1000;
+      root.current.position.y = dropOffsetY(elapsed, delay, 60, 1.1);
+    }
     if (!sign.current) return;
     const bob = Math.sin(state.clock.elapsedTime * 1.5) * 0.15;
     sign.current.position.y = 4.4 + bob;
@@ -28,7 +37,7 @@ export function StationMarker({ station }: { station: Station }) {
   const [x, , z] = station.position;
 
   return (
-    <group position={[x, 0, z]}>
+    <group ref={root} position={[x, 60, z]}>
       {/* soft ground marker */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]} receiveShadow>
         <ringGeometry args={[station.radius - 1.4, station.radius, 48]} />
