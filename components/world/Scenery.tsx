@@ -54,8 +54,10 @@ function Rock({ state, dropIdx }: { state: Knockable; dropIdx: number }) {
 
   return (
     <group ref={group}>
+      {/* Lifted slightly so the bottom of the dodecahedron sits flush with
+          the ground instead of half-buried. */}
       <mesh
-        position={[0, state.s * 0.4, 0]}
+        position={[0, state.s * 0.7, 0]}
         rotation={[state.baseRot * 0.3, 0, state.baseRot * 0.2]}
         scale={[state.s * 1.4, state.s, state.s * 1.3]}
         castShadow

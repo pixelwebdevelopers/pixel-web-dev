@@ -6,11 +6,18 @@ import { Scenery } from './Scenery';
 import { GroundDecor } from './GroundDecor';
 import { RocksPhysics } from './RocksPhysics';
 import { BowlingPins } from './BowlingPins';
+import { BowlingBall } from './BowlingBall';
+import { Bricks } from './Bricks';
 import { LetterBlocks } from './LetterBlocks';
 import { ResetZones } from './ResetZones';
 import { KnockablesPhysics } from './KnockablesPhysics';
-import { StationMarker } from '@/components/stations/StationMarker';
-import { STATIONS } from '@/utils/config';
+import { PortfolioBillboards } from './PortfolioBillboards';
+import { ServicesStation } from './ServicesStation';
+import { ContactStation } from './ContactStation';
+import { Terrain } from './Terrain';
+import { Signposts } from './Signposts';
+import { Paths } from './Paths';
+import { CardboardBoxes } from './CardboardBoxes';
 
 export function World() {
   return (
@@ -21,16 +28,26 @@ export function World() {
       <RocksPhysics />
       <GroundDecor />
 
-      {/* mini-playgrounds */}
+      {/* nav: tile paths from spawn to each destination + wooden arrow signs */}
+      <Paths />
+      <Signposts />
+
+      {/* terrain features (bridge + jump ramp) */}
+      <Terrain />
+
+      {/* playground props */}
       <BowlingPins />
+      <BowlingBall />
+      <Bricks />
+      <CardboardBoxes />
       <LetterBlocks />
       <ResetZones />
       <KnockablesPhysics />
 
-      {/* drive up to a signpost to open that zone */}
-      {STATIONS.map((s) => (
-        <StationMarker key={s.id} station={s} />
-      ))}
+      {/* bespoke per-station visuals */}
+      <PortfolioBillboards />
+      <ServicesStation />
+      <ContactStation />
     </>
   );
 }

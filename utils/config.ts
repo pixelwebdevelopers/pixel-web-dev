@@ -2,14 +2,14 @@ import type { Station, Service, Project, Testimonial } from './types';
 
 export const WORLD = {
   /** Soft boundary radius — car gets gently pushed back inside */
-  boundary: 240,
+  boundary: 150,
   groundY: 0,
 };
 
 export const CAR_CONFIG = {
   maxSpeed: 54, // units/sec forward
   maxReverseSpeed: 20,
-  accel: 34, // acceleration force
+  accel: 50, // acceleration force
   brakeForce: 48,
   drag: 1.1, // passive deceleration coefficient
   turnSpeed: 2.4, // rad/sec at full lock
@@ -24,61 +24,34 @@ export const STATIONS: Station[] = [
     title: 'Pixel Web Developers',
     subtitle: 'We Build Digital Experiences That Move',
     position: [0, 0, 0],
-    radius: 14,
+    radius: 12,
     color: '#22d3ee',
   },
   {
     id: 'services',
-    label: 'Services Hub',
+    label: 'Services',
     title: 'What We Build',
     subtitle: 'Seven disciplines, one team.',
-    position: [70, 0, -55],
-    radius: 16,
+    position: [55, 0, -45],
+    radius: 14,
     color: '#a855f7',
   },
   {
     id: 'portfolio',
-    label: 'Portfolio District',
+    label: 'Portfolio',
     title: 'Selected Work',
-    subtitle: 'Drive into a showroom pod to open a case study.',
-    position: [-80, 0, -70],
-    radius: 18,
+    subtitle: 'Drive past the billboards to preview each site.',
+    position: [-60, 0, -55],
+    radius: 16,
     color: '#ff2d95',
   },
   {
-    id: 'about',
-    label: 'About Tower',
-    title: 'Inside Pixel HQ',
-    subtitle: 'The people, the numbers, the journey.',
-    position: [95, 0, 65],
-    radius: 16,
-    color: '#34d399',
-  },
-  {
-    id: 'process',
-    label: 'Process Road',
-    title: 'How We Work',
-    subtitle: 'Five checkpoints from idea to launch.',
-    position: [0, 0, -120],
-    radius: 16,
-    color: '#f59e0b',
-  },
-  {
-    id: 'testimonials',
-    label: 'Testimonial Park',
-    title: 'Client Voices',
-    subtitle: 'What it feels like to ship with us.',
-    position: [-95, 0, 70],
-    radius: 16,
-    color: '#60a5fa',
-  },
-  {
     id: 'contact',
-    label: 'Contact Portal',
+    label: 'Contact',
     title: 'Start Your Project',
     subtitle: 'Drive into the ring to open the comms channel.',
-    position: [0, 0, 130],
-    radius: 15,
+    position: [0, 0, 95],
+    radius: 14,
     color: '#22d3ee',
   },
 ];

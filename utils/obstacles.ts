@@ -67,8 +67,8 @@ function scatter(
 export const TREE_COLORS = ['#a7d24a', '#c6e85a', '#86b733', '#bcdd4e'];
 export const ROCK_COLORS = ['#e3ddd6', '#d4ccc4', '#cfc7bd'];
 
-export const TREES: SceneItem[] = scatter(11, 46, TREE_COLORS, 22, 230);
-const ROCK_ITEMS: SceneItem[] = scatter(77, 60, ROCK_COLORS, 20, 240);
+export const TREES: SceneItem[] = scatter(11, 18, TREE_COLORS, 22, 140);
+const ROCK_ITEMS: SceneItem[] = scatter(77, 22, ROCK_COLORS, 20, 145);
 
 /**
  * Live state for every rock. Position is `base + off`; offset and velocity
@@ -84,7 +84,9 @@ export const ROCK_STATES: Knockable[] = ROCK_ITEMS.map((r) => ({
   rotY: 0,
   vrot: 0,
   s: r.s,
-  r: 1.1 * r.s,
+  // Collision radius now matches the visual horizontal extent so the car can't
+  // push into the rock visually before being stopped.
+  r: 1.45 * r.s,
   baseRot: r.r,
   c: r.c,
 }));
@@ -104,10 +106,8 @@ export const STATIC_OBSTACLES: StaticObstacle[] = [
     z: t.z,
     r: 0.6 * t.s,
   })),
-  ...STATIONS.filter((s) => s.id !== 'hero').map<StaticObstacle>((s) => ({
-    kind: 'pole',
-    x: s.position[0],
-    z: s.position[2],
-    r: 0.4,
-  })),
 ];
+
+// STATIONS is imported but no longer used here — keep the reference to
+// preserve the existing API surface if other code relies on it.
+void STATIONS;

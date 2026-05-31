@@ -11,8 +11,8 @@ import { dropOffsetY, dropDelay } from '@/utils/dropIn';
 /** Place a JSON font at this path (see public/audio/README for sourcing). */
 const FONT_URL = '/fonts/helvetiker_regular.typeface.json';
 
-const LETTER_HEIGHT = 3.0;
-const LETTER_DEPTH = 1.0;
+const LETTER_HEIGHT = 1.9;
+const LETTER_DEPTH = 0.6;
 
 function LetterChar({ entry, idx }: { entry: LetterEntry; idx: number }) {
   const root = useRef<THREE.Group>(null);
@@ -27,12 +27,15 @@ function LetterChar({ entry, idx }: { entry: LetterEntry; idx: number }) {
       : 0;
     root.current.position.x = state.baseX + state.offX;
     root.current.position.z = state.baseZ + state.offZ;
-    root.current.position.y = dropY;
     root.current.rotation.y = state.rotY;
     // tip on impact, clamped so they don't spin past 60°
     const t = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, state.tilt));
     root.current.rotation.z = -state.tiltAxisX * t;
     root.current.rotation.x = state.tiltAxisZ * t;
+    // Floor-clip compensation: lift the letter by depth/2 * |sin tilt| so
+    // the bottom-front edge doesn't dip below y=0 when it tips.
+    const lift = Math.abs(Math.sin(t)) * (LETTER_DEPTH / 2);
+    root.current.position.y = dropY + lift;
   });
 
   return (

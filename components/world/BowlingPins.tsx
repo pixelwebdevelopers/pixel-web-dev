@@ -24,12 +24,16 @@ function Pin({ idx }: { idx: number }) {
       : 0;
     root.current.position.x = state.baseX + state.offX;
     root.current.position.z = state.baseZ + state.offZ;
-    root.current.position.y = dropY;
     root.current.rotation.y = state.rotY;
     // tilt the pin around the impact axis: clamp so it doesn't spin past 90°
     const t = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, state.tilt));
     root.current.rotation.z = -state.tiltAxisX * t;
     root.current.rotation.x = state.tiltAxisZ * t;
+    // Floor-clip compensation: when the pin tips, rotating around the base
+    // center sends the cylinder's side below y=0. Lift the root by the
+    // bottom radius * |sin tilt| so the lowest point stays on the ground.
+    const lift = Math.abs(Math.sin(t)) * PIN_BOTTOM_RADIUS;
+    root.current.position.y = dropY + lift;
   });
 
   return (
